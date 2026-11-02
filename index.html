@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Phone Mirror Viewer</title>
+<style>
+body{margin:0;font:16px system-ui,sans-serif;background:#10131a;color:#e8ebf2}
+main{max-width:640px;margin:0 auto;padding:24px 16px}
+h1{margin:0 0 4px}p.s{color:#9aa3b5;margin:0 0 20px}
+.step{margin:18px 0}b.n{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;background:#2b3a66;margin-right:8px}
+button{font:inherit;padding:10px 16px;border:0;border-radius:8px;background:#3b82f6;color:#fff;cursor:pointer}
+button.g{background:#16a34a}
+textarea{width:100%;box-sizing:border-box;height:90px;margin:8px 0;background:#1a1f2b;color:#e8ebf2;border:1px solid #2f3748;border-radius:8px;padding:8px;font:12px ui-monospace,monospace}
+video{display:none;width:100%;max-height:100vh;background:#000}
+body.live main{display:none}body.live video{display:block;margin:0 auto}
+#msg{color:#fca5a5;min-height:1.2em}
+</style>
+<main>
+<h1>Phone Mirror Viewer</h1>
+<p class=s>Show your iPhone screen in this browser.</p>
+<div class=step><b class=n>1</b>Start the broadcast in the Phone Mirror app on your iPhone.</div>
+<div class=step><b class=n>2</b><button id=mk>Create code</button>
+<textarea id=offer readonly placeholder="Your code appears here"></textarea>
+<button id=cp>Copy code</button> <span class=s>Send it to your iPhone (for example by Messages or email) and paste it in the app.</span></div>
+<div class=step><b class=n>3</b>Paste the reply from the app:
+<textarea id=ans placeholder="Paste the reply here"></textarea>
+<button id=go class=g>Connect</button> <span id=msg></span></div>
+</main>
+<video id=v autoplay playsinline muted controls></video>
+<script>
+const $=id=>document.getElementById(id);let pc;
+const waitIce=pc=>new Promise(r=>{if(pc.iceGatheringState==='complete')return r();
+ pc.addEventListener('icegatheringstatechange',()=>pc.iceGatheringState==='complete'&&r());setTimeout(r,4000)});
+$('mk').onclick=async()=>{
+ if(pc)pc.close();pc=new RTCPeerConnection({iceServers:[]});
+ pc.addTransceiver('video',{direction:'recvonly'});
+ pc.ontrack=e=>{$('v').srcObject=e.streams[0]||new MediaStream([e.track])};
+ pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected')document.body.classList.add('live');
+  if(['failed','disconnected'].includes(pc.connectionState)){document.body.classList.remove('live');$('msg').textContent='Connection lost. Create a new code.'}};
+ await pc.setLocalDescription(await pc.createOffer());await waitIce(pc);
+ $('offer').value=btoa(pc.localDescription.sdp)};
+$('cp').onclick=()=>{$('offer').select();navigator.clipboard.writeText($('offer').value).catch(()=>document.execCommand('copy'))};
+$('go').onclick=async()=>{
+ try{if(!pc)throw Error('Create a code first.');
+  const sdp=atob($('ans').value.replace(/\s/g,''));
+  await pc.setRemoteDescription({type:'answer',sdp});$('msg').textContent='Connecting…'}
+ catch(e){$('msg').textContent=e.message||'That reply is not valid.'}};
+$('v').onclick=()=>$('v').requestFullscreen?.();
+</script>

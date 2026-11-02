@@ -27,20 +27,26 @@ body.live main{display:none}body.live video{display:block;margin:0 auto}
 <video id=v autoplay playsinline muted controls></video>
 <script>
 const $=id=>document.getElementById(id);let pc;
+const b64=u=>btoa(String.fromCharCode(...u));const unb64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+async function pipe(bytes,stream){const r=new Blob([bytes]).stream().pipeThrough(stream);return new Uint8Array(await new Response(r).arrayBuffer())}
+const pack=async t=>b64(await pipe(new TextEncoder().encode(t),new CompressionStream('deflate-raw')));
+const unpack=async t=>new TextDecoder().decode(await pipe(unb64(t),new DecompressionStream('deflate-raw')));
 const waitIce=pc=>new Promise(r=>{if(pc.iceGatheringState==='complete')return r();
  pc.addEventListener('icegatheringstatechange',()=>pc.iceGatheringState==='complete'&&r());setTimeout(r,4000)});
 $('mk').onclick=async()=>{
  if(pc)pc.close();pc=new RTCPeerConnection({iceServers:[]});
- pc.addTransceiver('video',{direction:'recvonly'});
+ const tr=pc.addTransceiver('video',{direction:'recvonly'});
+ const h=RTCRtpReceiver.getCapabilities('video').codecs.filter(c=>c.mimeType==='video/H264');
+ if(h.length)tr.setCodecPreferences(h);
  pc.ontrack=e=>{$('v').srcObject=e.streams[0]||new MediaStream([e.track])};
  pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected')document.body.classList.add('live');
   if(['failed','disconnected'].includes(pc.connectionState)){document.body.classList.remove('live');$('msg').textContent='Connection lost. Create a new code.'}};
  await pc.setLocalDescription(await pc.createOffer());await waitIce(pc);
- $('offer').value=btoa(pc.localDescription.sdp)};
+ $('offer').value=await pack(pc.localDescription.sdp)};
 $('cp').onclick=()=>{$('offer').select();navigator.clipboard.writeText($('offer').value).catch(()=>document.execCommand('copy'))};
 $('go').onclick=async()=>{
  try{if(!pc)throw Error('Create a code first.');
-  const sdp=atob($('ans').value.replace(/\s/g,''));
+  const sdp=await unpack($('ans').value.replace(/\s/g,''));
   await pc.setRemoteDescription({type:'answer',sdp});$('msg').textContent='Connecting…'}
  catch(e){$('msg').textContent=e.message||'That reply is not valid.'}};
 $('v').onclick=()=>$('v').requestFullscreen?.();
